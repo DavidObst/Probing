@@ -2,21 +2,57 @@
 % Please edit documentation in R/probing_main.R
 \name{probing}
 \alias{probing}
-\title{Title}
+\title{Variable selection through probing}
 \usage{
 probing(y, X, r)
 }
 \arguments{
-\item{r}{}
+\item{y}{The response vector.}
+
+\item{X}{A data frame corresponding to the design matrix.}
+
+\item{r}{A real number between 0 and 1 giving the risk of selecting a feature
+less relevant than a random probe.}
+}
+\value{
+A list containing the following elements:
+\item{G}{A numeric vector corresponding to the CDF of the rank of the probe.}
+\item{selected}{A character vector giving the chosen variables at the risk level r.}
 }
 \description{
-Title
+This function allows the user to perform a variable selection for a gaussian linear model \eqn{y = X*B + w}.
+In fact this algorithm can be applied for any linear in its parameter model (e.g. GAM models).
+}
+\details{
+As it is, it cannot be applied for selecting variables for models such as ANN, but one can first learn a task on a
+linear in its parameters model, apply this algorithm and then re-use the variables it yielded on a more complex model.
+
+Since the CDF calculation involves calculation of a factorial, using high amounts of samples (typically N > 100)
+is a bad idea and will lead R to crash.
+
+Important remark : if r < 1, usually only the beginning of the CDF of the rank of the probe will be obtained (since
+the algorithm stops as soon as G < r).
+In order to obtain the full one, the user should take r=1.
 }
 \examples{
-theta <- c(runif(5,-5,5),rep(0,5))
+### Linear model ###
+theta <- c(1,-2.5,0.4,0.7,-0.2,rep(0,5))
 w <- rnorm(15,0,0.02)
-X <- replicate(10,rnorm(15,runif(1,-1,1),runif(1,0.05,0.3)))
+X <- cbind(replicate(5,rnorm(15,1,0.05)),replicate(5,runif(15,-1,1)))
 y <- X\%*\%theta + w
 X <- as.data.frame(X)
-probing(y,X,r=0.1)
+probing(y,X,r=0.1) ### Usully at a risk level of 0.1, at least 4 of the relevant variables are chosen.
+probing(y,X,r=1) ### yields the CDF of the random probe.
+
+### Polynomial model ###
+library(mgcv)
+w <- rnorm(200,0,0.1)
+X <- cbind(replicate(5,rnorm(200,1,0.05)),replicate(5,runif(200,-1,1))) ##N = 200 to allow the gam model to be learnt.
+X <- as.data.frame(X)
+y <- 2*(X[,1]^2) -0.8*exp(X[,2]-0.2) + 0.5*abs(X[,4]-1) + w
+formula.gam <- paste("y~",paste("s(V",1:10,")",sep="",collapse="+"),sep="")
+gam <- gam(as.formula(formula.gam),data=X)
+X.gam <- as.data.frame(gam$model)[,-1]
+probing(y[1:70],X.gam[1:70,],r=0.1) ##gam$model is the design matrix after doing all the transformation for GAM estimate
+probing(y[1:70],X.gam[1:70,],r=1)
 }
